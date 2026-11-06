@@ -1,5 +1,5 @@
 const VIDEO_BASE =
-  "https://raw.githubusercontent.com/maponosvoid/postcard-2026-11-06/video/";
+  "https://raw.githubusercontent.com/stonebeltd/postcard-2026-11-06/video/";
 const VERTICAL_CLIP = `${VIDEO_BASE}vertical/index.m3u8`;
 const HORIZONTAL_CLIP = `${VIDEO_BASE}horizontal/index.m3u8`;
 const VERTICAL_POSTER = "bg-vertical.jpg";
