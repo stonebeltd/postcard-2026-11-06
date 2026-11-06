@@ -1,7 +1,7 @@
 const VIDEO_BASE =
   "https://raw.githubusercontent.com/stonebeltd/postcard-2026-11-06/video/";
-const VERTICAL_CLIP = `${VIDEO_BASE}bg-vertical.mp4`;
-const HORIZONTAL_CLIP = `${VIDEO_BASE}bg-horizontal.mp4`;
+const VERTICAL_CLIP = `${VIDEO_BASE}bg-vertical.mp4?v=2`;
+const HORIZONTAL_CLIP = `${VIDEO_BASE}bg-horizontal.mp4?v=2`;
 const VERTICAL_POSTER = "bg-vertical.jpg";
 const HORIZONTAL_POSTER = "bg-horizontal.jpg";
 const TEXT_SPEED = 40;
