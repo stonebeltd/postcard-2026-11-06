@@ -46,7 +46,7 @@ function frameUrls(kind) {
   const urls = [];
   for (let i = 1; i <= count; i += 1) {
     const name = String(i).padStart(2, "0");
-    urls.push(`frames/${kind}/${name}.webp`);
+    urls.push(`frames/${kind}/${name}.webp?v=2`);
   }
   return urls;
 }
