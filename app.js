@@ -1,5 +1,7 @@
 const VERTICAL_CLIP = "bg-vertical.mp4";
 const HORIZONTAL_CLIP = "bg-horizontal.mp4";
+const VERTICAL_POSTER = "bg-vertical.jpg";
+const HORIZONTAL_POSTER = "bg-horizontal.jpg";
 const TEXT_SPEED = 40;
 
 const postcard = document.getElementById("postcard");
@@ -43,6 +45,7 @@ function applyBackgroundClip() {
     return;
   }
   const keepTime = video.currentTime;
+  video.poster = next === HORIZONTAL_CLIP ? HORIZONTAL_POSTER : VERTICAL_POSTER;
   video.src = next;
   video.loop = true;
   video.muted = true;
