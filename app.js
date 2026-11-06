@@ -1,7 +1,7 @@
 const VIDEO_BASE =
   "https://raw.githubusercontent.com/stonebeltd/postcard-2026-11-06/video/";
-const VERTICAL_CLIP = `${VIDEO_BASE}vertical/index.m3u8`;
-const HORIZONTAL_CLIP = `${VIDEO_BASE}horizontal/index.m3u8`;
+const VERTICAL_CLIP = `${VIDEO_BASE}bg-vertical.mp4`;
+const HORIZONTAL_CLIP = `${VIDEO_BASE}bg-horizontal.mp4`;
 const VERTICAL_POSTER = "bg-vertical.jpg";
 const HORIZONTAL_POSTER = "bg-horizontal.jpg";
 const TEXT_SPEED = 40;
@@ -16,12 +16,11 @@ const loader = document.getElementById("loader");
 const loaderBar = document.getElementById("loaderBar");
 const desktopQuery = window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 800px)");
 
+const downloaded = Object.create(null);
 let textOrigin = null;
-let hlsPlayer = null;
 let activeClip = "";
 let hasRevealed = false;
-let expectedFrags = 0;
-let loadedFrags = 0;
+let loadToken = 0;
 
 function setProgress(amount) {
   const value = Math.max(0, Math.min(1, amount));
@@ -36,24 +35,10 @@ function revealPostcard() {
   hasRevealed = true;
   setProgress(1);
   postcard.classList.remove("is-loading");
-  if (hlsPlayer) hlsPlayer.nextLevel = -1;
 }
 
 function clipForViewport() {
   return desktopQuery.matches ? HORIZONTAL_CLIP : VERTICAL_CLIP;
-}
-
-function bufferCoverage() {
-  if (!video.duration || !isFinite(video.duration) || video.buffered.length === 0) {
-    return 0;
-  }
-  return Math.min(1, video.buffered.end(video.buffered.length - 1) / video.duration);
-}
-
-function maybeRevealFromBuffer() {
-  const coverage = bufferCoverage();
-  if (coverage > 0) setProgress(Math.max(coverage, loadedFrags && expectedFrags ? loadedFrags / expectedFrags : 0));
-  if (coverage >= 0.97) revealPostcard();
 }
 
 function ensureVideoLooping() {
@@ -69,86 +54,54 @@ function ensureVideoLooping() {
   }
 }
 
-function destroyHls() {
-  if (hlsPlayer) {
-    hlsPlayer.destroy();
-    hlsPlayer = null;
-  }
+function downloadClip(url, onProgress) {
+  if (downloaded[url]) return Promise.resolve(downloaded[url]);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", url);
+    xhr.responseType = "blob";
+    xhr.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        onProgress(event.loaded / event.total);
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        downloaded[url] = URL.createObjectURL(xhr.response);
+        resolve(downloaded[url]);
+        return;
+      }
+      reject(new Error(String(xhr.status)));
+    };
+    xhr.onerror = () => reject(new Error("network"));
+    xhr.send();
+  });
 }
 
-function playlistUrl(masterUrl, name) {
-  return new URL(name, masterUrl).href;
-}
-
-function tsUrls(mediaPlaylist, mediaUrl) {
-  return mediaPlaylist
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith("#"))
-    .map((line) => new URL(line, mediaUrl).href);
-}
-
-async function prefetchClip(masterUrl) {
-  try {
-    const master = await fetch(masterUrl).then((res) => res.text());
-    const mediaRel = master.split(/\r?\n/).find((line) => line.trim().endsWith("720/index.m3u8")) || "720/index.m3u8";
-    const mediaUrl = playlistUrl(masterUrl, mediaRel.trim());
-    const media = await fetch(mediaUrl).then((res) => res.text());
-    const parts = tsUrls(media, mediaUrl);
-    await Promise.all(
-      parts.map((url) =>
-        fetch(url, { mode: "cors", credentials: "omit" }).then((res) => res.blob())
-      )
-    );
-  } catch (err) {
-    // Keep the visible clip loading even if the other orientation fails.
-  }
-}
-
-function playStream(url) {
-  destroyHls();
-  expectedFrags = 0;
-  loadedFrags = 0;
-  setProgress(0);
+function playClip(url) {
+  const token = ++loadToken;
+  setProgress(downloaded[url] ? 1 : 0);
   video.muted = true;
   video.loop = true;
   video.playsInline = true;
+  video.poster = url === HORIZONTAL_CLIP ? HORIZONTAL_POSTER : VERTICAL_POSTER;
 
-  if (window.Hls && Hls.isSupported()) {
-    hlsPlayer = new Hls({
-      capLevelToPlayerSize: true,
-      startLevel: 0,
-      autoLevelEnabled: false,
-      maxBufferLength: 60,
-      maxMaxBufferLength: 120,
-      maxBufferSize: 80 * 1000 * 1000,
+  downloadClip(url, (amount) => {
+    if (token === loadToken && !hasRevealed) setProgress(amount);
+  })
+    .then((blobUrl) => {
+      if (token !== loadToken) return;
+      video.src = blobUrl;
+      ensureVideoLooping();
+      revealPostcard();
+    })
+    .catch(() => {
+      if (token !== loadToken) return;
+      video.src = url;
+      ensureVideoLooping();
+      revealPostcard();
     });
-    hlsPlayer.loadSource(url);
-    hlsPlayer.attachMedia(video);
-    hlsPlayer.on(Hls.Events.MANIFEST_PARSED, ensureVideoLooping);
-    hlsPlayer.on(Hls.Events.LEVEL_LOADED, (_, data) => {
-      if (!expectedFrags && data.details && data.details.fragments) {
-        expectedFrags = data.details.fragments.length;
-      }
-    });
-    hlsPlayer.on(Hls.Events.FRAG_LOADED, () => {
-      if (hasRevealed) return;
-      loadedFrags += 1;
-      if (expectedFrags) setProgress(loadedFrags / expectedFrags);
-      if (expectedFrags && loadedFrags >= expectedFrags) revealPostcard();
-    });
-    hlsPlayer.on(Hls.Events.ERROR, () => ensureVideoLooping());
-    return;
-  }
-
-  if (video.canPlayType("application/vnd.apple.mpegurl")) {
-    video.src = url;
-    ensureVideoLooping();
-    return;
-  }
-
-  video.src = url;
-  ensureVideoLooping();
 }
 
 function applyBackgroundClip() {
@@ -158,10 +111,9 @@ function applyBackgroundClip() {
     return;
   }
   activeClip = next;
-  video.poster = next === HORIZONTAL_CLIP ? HORIZONTAL_POSTER : VERTICAL_POSTER;
-  playStream(next);
+  playClip(next);
   const other = next === HORIZONTAL_CLIP ? VERTICAL_CLIP : HORIZONTAL_CLIP;
-  prefetchClip(other);
+  downloadClip(other);
 }
 
 function startSoundtrack() {
@@ -201,9 +153,7 @@ prepareTextLoop();
 applyBackgroundClip();
 requestAnimationFrame(moveText);
 
-video.addEventListener("progress", maybeRevealFromBuffer);
-video.addEventListener("canplaythrough", maybeRevealFromBuffer);
-window.setTimeout(revealPostcard, 45000);
+window.setTimeout(revealPostcard, 90000);
 
 video.addEventListener("ended", () => {
   video.currentTime = 0;
