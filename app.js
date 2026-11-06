@@ -114,12 +114,6 @@ function playStream(url) {
   video.loop = true;
   video.playsInline = true;
 
-  if (video.canPlayType("application/vnd.apple.mpegurl")) {
-    video.src = url;
-    ensureVideoLooping();
-    return;
-  }
-
   if (window.Hls && Hls.isSupported()) {
     hlsPlayer = new Hls({
       capLevelToPlayerSize: true,
@@ -144,6 +138,12 @@ function playStream(url) {
       if (expectedFrags && loadedFrags >= expectedFrags) revealPostcard();
     });
     hlsPlayer.on(Hls.Events.ERROR, () => ensureVideoLooping());
+    return;
+  }
+
+  if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = url;
+    ensureVideoLooping();
     return;
   }
 
