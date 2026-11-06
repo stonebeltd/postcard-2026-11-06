@@ -68,7 +68,8 @@ function downloadClip(url, onProgress) {
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        downloaded[url] = URL.createObjectURL(xhr.response);
+        const blob = new Blob([xhr.response], { type: "video/mp4" });
+        downloaded[url] = URL.createObjectURL(blob);
         resolve(downloaded[url]);
         return;
       }
@@ -93,14 +94,14 @@ function playClip(url) {
     .then((blobUrl) => {
       if (token !== loadToken) return;
       video.src = blobUrl;
+      video.load();
       ensureVideoLooping();
-      revealPostcard();
     })
     .catch(() => {
       if (token !== loadToken) return;
       video.src = url;
+      video.load();
       ensureVideoLooping();
-      revealPostcard();
     });
 }
 
@@ -154,6 +155,11 @@ applyBackgroundClip();
 requestAnimationFrame(moveText);
 
 window.setTimeout(revealPostcard, 90000);
+
+video.addEventListener("playing", () => {
+  video.removeAttribute("poster");
+  revealPostcard();
+});
 
 video.addEventListener("ended", () => {
   video.currentTime = 0;
