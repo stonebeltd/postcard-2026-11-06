@@ -1,7 +1,7 @@
 const VIDEO_BASE =
   "https://raw.githubusercontent.com/maponosvoid/postcard-2026-11-06/video/";
-const VERTICAL_CLIP = `${VIDEO_BASE}bg-vertical.mp4`;
-const HORIZONTAL_CLIP = `${VIDEO_BASE}bg-horizontal.mp4`;
+const VERTICAL_CLIP = `${VIDEO_BASE}vertical/index.m3u8`;
+const HORIZONTAL_CLIP = `${VIDEO_BASE}horizontal/index.m3u8`;
 const VERTICAL_POSTER = "bg-vertical.jpg";
 const HORIZONTAL_POSTER = "bg-horizontal.jpg";
 const TEXT_SPEED = 40;
@@ -14,21 +14,11 @@ const openBtn = document.getElementById("open");
 const desktopQuery = window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 800px)");
 
 let textOrigin = null;
+let hlsPlayer = null;
+let activeClip = "";
 
 function clipForViewport() {
   return desktopQuery.matches ? HORIZONTAL_CLIP : VERTICAL_CLIP;
-}
-
-function clipName(url) {
-  try {
-    return decodeURIComponent(new URL(url, location.href).pathname.split("/").pop());
-  } catch {
-    return "";
-  }
-}
-
-function currentClip() {
-  return clipName(video.currentSrc || video.src);
 }
 
 function ensureVideoLooping() {
@@ -44,28 +34,51 @@ function ensureVideoLooping() {
   }
 }
 
-function applyBackgroundClip() {
-  const next = clipForViewport();
-  if (currentClip() === clipName(next)) {
+function destroyHls() {
+  if (hlsPlayer) {
+    hlsPlayer.destroy();
+    hlsPlayer = null;
+  }
+}
+
+function playStream(url) {
+  destroyHls();
+  video.muted = true;
+  video.loop = true;
+  video.playsInline = true;
+
+  if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = url;
     ensureVideoLooping();
     return;
   }
-  const keepTime = video.currentTime;
-  video.poster = next === HORIZONTAL_CLIP ? HORIZONTAL_POSTER : VERTICAL_POSTER;
-  video.src = next;
-  video.loop = true;
-  video.muted = true;
-  video.addEventListener(
-    "loadedmetadata",
-    () => {
-      if (keepTime && Number.isFinite(video.duration) && video.duration > 0) {
-        video.currentTime = keepTime % video.duration;
-      }
-    },
-    { once: true }
-  );
-  video.load();
+
+  if (window.Hls && Hls.isSupported()) {
+    hlsPlayer = new Hls({
+      capLevelToPlayerSize: true,
+      startLevel: 0,
+      maxBufferLength: 12,
+    });
+    hlsPlayer.loadSource(url);
+    hlsPlayer.attachMedia(video);
+    hlsPlayer.on(Hls.Events.MANIFEST_PARSED, ensureVideoLooping);
+    hlsPlayer.on(Hls.Events.ERROR, () => ensureVideoLooping());
+    return;
+  }
+
+  video.src = url;
   ensureVideoLooping();
+}
+
+function applyBackgroundClip() {
+  const next = clipForViewport();
+  if (activeClip === next) {
+    ensureVideoLooping();
+    return;
+  }
+  activeClip = next;
+  video.poster = next === HORIZONTAL_CLIP ? HORIZONTAL_POSTER : VERTICAL_POSTER;
+  playStream(next);
 }
 
 function startSoundtrack() {
