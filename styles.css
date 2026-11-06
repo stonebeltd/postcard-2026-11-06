@@ -1,0 +1,173 @@
+:root {
+  --ink: #fffef8;
+  --gold: #edd09a;
+  --shadow: rgba(8, 4, 2, 0.72);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  background: #0b0705;
+  color: var(--ink);
+  font-family: "Cormorant Garamond", Georgia, serif;
+}
+
+body {
+  overflow: hidden;
+}
+
+.stage,
+.postcard {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+.bg-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  filter: saturate(1.04) contrast(1.06) brightness(0.92);
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at center, rgba(8, 4, 2, 0.18) 0%, rgba(8, 4, 2, 0.52) 100%),
+    linear-gradient(to bottom, rgba(8, 4, 2, 0.28), transparent 18%, transparent 72%, rgba(8, 4, 2, 0.5));
+  pointer-events: none;
+}
+
+.soft-light {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 244, 220, 0.08), transparent 28%);
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+
+.flow-mask {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 14%,
+    black 82%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 14%,
+    black 82%,
+    transparent 100%
+  );
+}
+
+.postcard.is-open .flow-mask {
+  opacity: 1;
+  transition: opacity 1.4s ease;
+}
+
+.flow {
+  position: absolute;
+  left: 50%;
+  top: 16vh;
+  width: min(92vw, 520px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.18em;
+  text-align: center;
+  color: var(--ink);
+  font-family: "Bad Script", "Segoe Script", cursive;
+  font-size: clamp(30px, 5.6vw, 46px);
+  line-height: 1.3;
+  transform: translateX(-50%);
+  will-change: transform;
+  text-shadow:
+    0 0 12px rgba(0, 0, 0, 0.55),
+    0 2px 0 rgba(0, 0, 0, 0.4),
+    0 10px 28px var(--shadow);
+}
+
+.flow h1 {
+  font-size: 1.32em;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  margin: 0.4em 0 0.55em;
+}
+
+.flow p {
+  max-width: 16ch;
+}
+
+.flow .pause,
+.flow .flourish {
+  color: var(--gold);
+  opacity: 0.9;
+  font-size: 0.7em;
+  margin: 0.6em 0;
+}
+
+.open {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  border: 0;
+  background: radial-gradient(ellipse at center, rgba(18, 10, 6, 0.12), rgba(8, 4, 2, 0.38));
+  cursor: pointer;
+  color: var(--ink);
+  z-index: 3;
+  transition: opacity 0.9s ease, visibility 0.9s ease;
+}
+
+.postcard.is-open .open {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.invite {
+  width: min(42vw, 280px);
+  max-height: 64vh;
+  height: auto;
+  object-fit: contain;
+  transform: rotate(-8deg);
+  border-radius: 6px;
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.45),
+    0 0 0 8px #f6ecd8;
+  transition: transform 0.35s ease;
+}
+
+.open:hover .invite {
+  transform: rotate(-5deg) scale(1.03);
+}
+
+.open-label {
+  font-family: "Bad Script", "Segoe Script", cursive;
+  font-size: clamp(26px, 4vw, 36px);
+  letter-spacing: 0.02em;
+  text-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
