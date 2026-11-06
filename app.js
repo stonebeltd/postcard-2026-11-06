@@ -1,7 +1,7 @@
 const VIDEO_BASE =
   "https://raw.githubusercontent.com/stonebeltd/postcard-2026-11-06/video/";
-const VERTICAL_CLIP = `${VIDEO_BASE}bg-vertical.mp4?v=2`;
-const HORIZONTAL_CLIP = `${VIDEO_BASE}bg-horizontal.mp4?v=2`;
+const VERTICAL_CLIP = `${VIDEO_BASE}bg-vertical.mp4?v=3`;
+const HORIZONTAL_CLIP = `${VIDEO_BASE}bg-horizontal.mp4?v=3`;
 const VERTICAL_POSTER = "bg-vertical.jpg";
 const HORIZONTAL_POSTER = "bg-horizontal.jpg";
 const TEXT_SPEED = 40;
@@ -43,14 +43,13 @@ function clipForViewport() {
 
 function ensureVideoLooping() {
   video.muted = true;
+  video.defaultMuted = true;
   video.loop = true;
   video.playsInline = true;
   video.autoplay = true;
-  if (video.paused) {
-    const play = video.play();
-    if (play && typeof play.catch === "function") {
-      play.catch(() => {});
-    }
+  const play = video.play();
+  if (play && typeof play.catch === "function") {
+    play.catch(() => {});
   }
 }
 
@@ -94,13 +93,11 @@ function playClip(url) {
     .then((blobUrl) => {
       if (token !== loadToken) return;
       video.src = blobUrl;
-      video.load();
       ensureVideoLooping();
     })
     .catch(() => {
       if (token !== loadToken) return;
-      video.src = url;
-      video.load();
+      video.src = url.split("?")[0];
       ensureVideoLooping();
     });
 }
@@ -129,7 +126,7 @@ function startSoundtrack() {
 function openCard() {
   if (postcard.classList.contains("is-open")) return;
   postcard.classList.add("is-open");
-  if (video.paused) ensureVideoLooping();
+  ensureVideoLooping();
   startSoundtrack();
   if (textOrigin === null) textOrigin = performance.now();
 }
@@ -156,11 +153,12 @@ requestAnimationFrame(moveText);
 
 window.setTimeout(revealPostcard, 90000);
 
+video.addEventListener("loadeddata", ensureVideoLooping);
+video.addEventListener("canplay", ensureVideoLooping);
 video.addEventListener("playing", () => {
   video.removeAttribute("poster");
   revealPostcard();
 });
-
 video.addEventListener("ended", () => {
   video.currentTime = 0;
   ensureVideoLooping();
