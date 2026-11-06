@@ -126,6 +126,81 @@ body {
   margin: 0.6em 0;
 }
 
+.loader {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: radial-gradient(ellipse at center, rgba(18, 10, 6, 0.42), rgba(8, 4, 2, 0.82));
+  pointer-events: auto;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.8s ease, visibility 0.8s ease;
+}
+
+.postcard.is-loading .loader {
+  opacity: 1;
+  visibility: visible;
+}
+
+.postcard.is-loading .open {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.loader-ring {
+  width: 72px;
+  height: 72px;
+}
+
+.loader-ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.loader-track,
+.loader-bar {
+  fill: none;
+  stroke-width: 3.5;
+}
+
+.loader-track {
+  stroke: rgba(237, 208, 154, 0.22);
+}
+
+.loader-bar {
+  stroke: var(--gold);
+  stroke-linecap: round;
+  stroke-dasharray: 163.4;
+  stroke-dashoffset: 163.4;
+  animation: loaderSpin 1.1s linear infinite;
+  transform-origin: 32px 32px;
+}
+
+.loader.is-determinate .loader-bar {
+  animation: none;
+  transition: stroke-dashoffset 0.25s ease;
+}
+
+.loader-text {
+  font-family: "Bad Script", "Segoe Script", cursive;
+  font-size: clamp(26px, 4.4vw, 38px);
+  letter-spacing: 0.04em;
+  text-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+
+@keyframes loaderSpin {
+  to {
+    transform: rotate(270deg);
+  }
+}
+
 .open {
   position: absolute;
   inset: 0;
