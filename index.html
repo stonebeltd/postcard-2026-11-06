@@ -24,7 +24,15 @@
           </div>
           <p class="loader-text">снег ещё идёт</p>
         </div>
-        <canvas id="bg" class="bg-video" aria-hidden="true"></canvas>
+        <video
+          id="bg"
+          class="bg-video"
+          muted
+          loop
+          playsinline
+          autoplay
+          preload="auto"
+        ></video>
         <audio
           id="soundtrack"
           src="Shadow Dance (Flute + Piano).mp3"
@@ -97,6 +105,6 @@
         </button>
       </div>
     </main>
-    <script src="app.js?v=20"></script>
+    <script src="app.js?v=21"></script>
   </body>
 </html>

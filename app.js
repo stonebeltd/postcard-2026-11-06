@@ -1,12 +1,10 @@
-const VERTICAL_FRAMES = 24;
-const HORIZONTAL_FRAMES = 24;
-const FRAME_MS = 125;
+const VERTICAL_CLIP = "loop-vertical.mp4";
+const HORIZONTAL_CLIP = "loop-horizontal.mp4";
 const TEXT_SPEED = 40;
 const RING = 2 * Math.PI * 26;
 
 const postcard = document.getElementById("postcard");
-const canvas = document.getElementById("bg");
-const ctx = canvas.getContext("2d", { alpha: false });
+const video = document.getElementById("bg");
 const soundtrack = document.getElementById("soundtrack");
 const flow = document.getElementById("flow");
 const openBtn = document.getElementById("open");
@@ -14,13 +12,9 @@ const loader = document.getElementById("loader");
 const loaderBar = document.getElementById("loaderBar");
 const desktopQuery = window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 800px)");
 
-const cache = Object.create(null);
 let textOrigin = null;
 let hasRevealed = false;
-let activeKind = "";
-let frameIndex = 0;
-let lastFrameAt = 0;
-let playing = null;
+let activeClip = "";
 
 function setProgress(amount) {
   const value = Math.max(0, Math.min(1, amount));
@@ -37,102 +31,45 @@ function revealPostcard() {
   postcard.classList.remove("is-loading");
 }
 
-function kindForViewport() {
-  return desktopQuery.matches ? "horizontal" : "vertical";
+function clipForViewport() {
+  return desktopQuery.matches ? HORIZONTAL_CLIP : VERTICAL_CLIP;
 }
 
-function frameUrls(kind) {
-  const count = kind === "horizontal" ? HORIZONTAL_FRAMES : VERTICAL_FRAMES;
-  const urls = [];
-  for (let i = 1; i <= count; i += 1) {
-    const name = String(i).padStart(2, "0");
-    urls.push(`frames/${kind}/${name}.webp?v=2`);
+function bufferCoverage() {
+  if (!video.duration || !isFinite(video.duration) || video.buffered.length === 0) {
+    return 0;
   }
-  return urls;
+  return Math.min(1, video.buffered.end(video.buffered.length - 1) / video.duration);
 }
 
-function loadImages(urls, onProgress) {
-  let done = 0;
-  return Promise.all(
-    urls.map(
-      (url) =>
-        new Promise((resolve, reject) => {
-          const image = new Image();
-          image.onload = () => {
-            done += 1;
-            if (onProgress) onProgress(done / urls.length);
-            resolve(image);
-          };
-          image.onerror = () => reject(new Error(url));
-          image.src = url;
-        })
-    )
-  );
-}
-
-function fitCanvas() {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = Math.round(window.innerWidth * dpr);
-  canvas.height = Math.round(window.innerHeight * dpr);
-}
-
-function drawCover(image) {
-  const cw = canvas.width;
-  const ch = canvas.height;
-  if (!cw || !ch || !image.width) return;
-  const imageRatio = image.width / image.height;
-  const canvasRatio = cw / ch;
-  let dw;
-  let dh;
-  if (imageRatio > canvasRatio) {
-    dh = ch;
-    dw = ch * imageRatio;
-  } else {
-    dw = cw;
-    dh = cw / imageRatio;
+function ensureVideoLooping() {
+  video.muted = true;
+  video.defaultMuted = true;
+  video.loop = true;
+  video.playsInline = true;
+  video.autoplay = true;
+  const play = video.play();
+  if (play && typeof play.catch === "function") {
+    play.catch(() => {});
   }
-  const dx = (cw - dw) / 2;
-  const dy = (ch - dh) / 2;
-  ctx.drawImage(image, dx, dy, dw, dh);
 }
 
-function tick(now) {
-  if (!playing || !playing.length) {
-    requestAnimationFrame(tick);
+function applyBackgroundClip() {
+  const next = clipForViewport();
+  if (activeClip === next) {
+    ensureVideoLooping();
     return;
   }
-  if (now - lastFrameAt >= FRAME_MS) {
-    lastFrameAt = now;
-    frameIndex = (frameIndex + 1) % playing.length;
-    drawCover(playing[frameIndex]);
-  }
-  requestAnimationFrame(tick);
-}
-
-async function applyBackground() {
-  const kind = kindForViewport();
-  if (kind === activeKind && playing) return;
-  activeKind = kind;
-  setProgress(cache[kind] ? 1 : 0);
-  try {
-    if (!cache[kind]) {
-      cache[kind] = await loadImages(frameUrls(kind), setProgress);
-    }
-    fitCanvas();
-    playing = cache[kind];
-    frameIndex = 0;
-    lastFrameAt = 0;
-    drawCover(playing[0]);
-    revealPostcard();
-  } catch (err) {
-    revealPostcard();
-  }
-  const other = kind === "horizontal" ? "vertical" : "horizontal";
-  if (!cache[other]) {
-    loadImages(frameUrls(other)).then((images) => {
-      cache[other] = images;
-    });
-  }
+  activeClip = next;
+  hasRevealed = false;
+  postcard.classList.add("is-loading");
+  setProgress(0);
+  video.muted = true;
+  video.loop = true;
+  video.playsInline = true;
+  video.src = next;
+  video.load();
+  ensureVideoLooping();
 }
 
 function startSoundtrack() {
@@ -147,6 +84,7 @@ function startSoundtrack() {
 function openCard() {
   if (postcard.classList.contains("is-open")) return;
   postcard.classList.add("is-open");
+  ensureVideoLooping();
   startSoundtrack();
   if (textOrigin === null) textOrigin = performance.now();
 }
@@ -168,20 +106,22 @@ function moveText(now) {
 }
 
 prepareTextLoop();
-fitCanvas();
-applyBackground();
-requestAnimationFrame(tick);
+applyBackgroundClip();
 requestAnimationFrame(moveText);
 
-window.addEventListener("resize", () => {
-  fitCanvas();
-  if (playing && playing[frameIndex]) drawCover(playing[frameIndex]);
+video.addEventListener("progress", () => setProgress(bufferCoverage()));
+video.addEventListener("loadeddata", ensureVideoLooping);
+video.addEventListener("canplay", ensureVideoLooping);
+video.addEventListener("playing", revealPostcard);
+video.addEventListener("ended", () => {
+  video.currentTime = 0;
+  ensureVideoLooping();
 });
 
 if (typeof desktopQuery.addEventListener === "function") {
-  desktopQuery.addEventListener("change", applyBackground);
+  desktopQuery.addEventListener("change", applyBackgroundClip);
 } else if (typeof desktopQuery.addListener === "function") {
-  desktopQuery.addListener(applyBackground);
+  desktopQuery.addListener(applyBackgroundClip);
 }
 
 openBtn.addEventListener("click", openCard);
