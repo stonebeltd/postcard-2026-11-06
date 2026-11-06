@@ -1,5 +1,5 @@
-const VERTICAL_CLIP = "loop-vertical.mp4";
-const HORIZONTAL_CLIP = "loop-horizontal.mp4";
+const VERTICAL_CLIP = "loop-vertical.mp4?v=2";
+const HORIZONTAL_CLIP = "loop-horizontal.mp4?v=2";
 const TEXT_SPEED = 40;
 const RING = 2 * Math.PI * 26;
 
@@ -12,7 +12,6 @@ const loader = document.getElementById("loader");
 const loaderBar = document.getElementById("loaderBar");
 const desktopQuery = window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 800px)");
 
-let textOrigin = null;
 let hasRevealed = false;
 let activeClip = "";
 
@@ -43,11 +42,11 @@ function bufferCoverage() {
 }
 
 function ensureVideoLooping() {
+  if (!video.paused) return;
   video.muted = true;
   video.defaultMuted = true;
   video.loop = true;
   video.playsInline = true;
-  video.autoplay = true;
   const play = video.play();
   if (play && typeof play.catch === "function") {
     play.catch(() => {});
@@ -68,8 +67,11 @@ function applyBackgroundClip() {
   video.loop = true;
   video.playsInline = true;
   video.src = next;
-  video.load();
-  ensureVideoLooping();
+}
+
+function startLetter() {
+  const loopHeight = Math.max(flow.scrollHeight / 2, 1);
+  flow.style.setProperty("--letter-duration", `${loopHeight / TEXT_SPEED}s`);
 }
 
 function startSoundtrack() {
@@ -84,9 +86,9 @@ function startSoundtrack() {
 function openCard() {
   if (postcard.classList.contains("is-open")) return;
   postcard.classList.add("is-open");
+  startLetter();
   ensureVideoLooping();
   startSoundtrack();
-  if (textOrigin === null) textOrigin = performance.now();
 }
 
 function prepareTextLoop() {
@@ -95,28 +97,14 @@ function prepareTextLoop() {
   flow.dataset.cloned = "true";
 }
 
-function moveText(now) {
-  if (textOrigin !== null) {
-    const loopHeight = Math.max(flow.scrollHeight / 2, 1);
-    const traveled = ((now - textOrigin) / 1000) * TEXT_SPEED;
-    const y = traveled % loopHeight;
-    flow.style.transform = `translate(-50%, ${-y}px)`;
-  }
-  requestAnimationFrame(moveText);
-}
-
 prepareTextLoop();
 applyBackgroundClip();
-requestAnimationFrame(moveText);
 
-video.addEventListener("progress", () => setProgress(bufferCoverage()));
-video.addEventListener("loadeddata", ensureVideoLooping);
+video.addEventListener("progress", () => {
+  if (!hasRevealed) setProgress(bufferCoverage());
+});
 video.addEventListener("canplay", ensureVideoLooping);
 video.addEventListener("playing", revealPostcard);
-video.addEventListener("ended", () => {
-  video.currentTime = 0;
-  ensureVideoLooping();
-});
 
 if (typeof desktopQuery.addEventListener === "function") {
   desktopQuery.addEventListener("change", applyBackgroundClip);
