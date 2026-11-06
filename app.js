@@ -1,5 +1,7 @@
-const VERTICAL_CLIP = "bg-vertical.mp4";
-const HORIZONTAL_CLIP = "bg-horizontal.mp4";
+const VIDEO_BASE =
+  "https://raw.githubusercontent.com/maponosvoid/postcard-2026-11-06/video/";
+const VERTICAL_CLIP = `${VIDEO_BASE}bg-vertical.mp4`;
+const HORIZONTAL_CLIP = `${VIDEO_BASE}bg-horizontal.mp4`;
 const VERTICAL_POSTER = "bg-vertical.jpg";
 const HORIZONTAL_POSTER = "bg-horizontal.jpg";
 const TEXT_SPEED = 40;
@@ -17,12 +19,16 @@ function clipForViewport() {
   return desktopQuery.matches ? HORIZONTAL_CLIP : VERTICAL_CLIP;
 }
 
-function currentClip() {
+function clipName(url) {
   try {
-    return decodeURIComponent(new URL(video.currentSrc || video.src, location.href).pathname.split("/").pop());
+    return decodeURIComponent(new URL(url, location.href).pathname.split("/").pop());
   } catch {
     return "";
   }
+}
+
+function currentClip() {
+  return clipName(video.currentSrc || video.src);
 }
 
 function ensureVideoLooping() {
@@ -40,7 +46,7 @@ function ensureVideoLooping() {
 
 function applyBackgroundClip() {
   const next = clipForViewport();
-  if (currentClip() === next) {
+  if (currentClip() === clipName(next)) {
     ensureVideoLooping();
     return;
   }
