@@ -1,14 +1,12 @@
-const VIDEO_BASE =
-  "https://raw.githubusercontent.com/stonebeltd/postcard-2026-11-06/video/";
-const VERTICAL_CLIP = `${VIDEO_BASE}bg-vertical.mp4?v=3`;
-const HORIZONTAL_CLIP = `${VIDEO_BASE}bg-horizontal.mp4?v=3`;
-const VERTICAL_POSTER = "bg-vertical.jpg";
-const HORIZONTAL_POSTER = "bg-horizontal.jpg";
+const VERTICAL_FRAMES = 24;
+const HORIZONTAL_FRAMES = 24;
+const FRAME_MS = 125;
 const TEXT_SPEED = 40;
 const RING = 2 * Math.PI * 26;
 
 const postcard = document.getElementById("postcard");
-const video = document.getElementById("bg");
+const canvas = document.getElementById("bg");
+const ctx = canvas.getContext("2d", { alpha: false });
 const soundtrack = document.getElementById("soundtrack");
 const flow = document.getElementById("flow");
 const openBtn = document.getElementById("open");
@@ -16,11 +14,13 @@ const loader = document.getElementById("loader");
 const loaderBar = document.getElementById("loaderBar");
 const desktopQuery = window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 800px)");
 
-const downloaded = Object.create(null);
+const cache = Object.create(null);
 let textOrigin = null;
-let activeClip = "";
 let hasRevealed = false;
-let loadToken = 0;
+let activeKind = "";
+let frameIndex = 0;
+let lastFrameAt = 0;
+let playing = null;
 
 function setProgress(amount) {
   const value = Math.max(0, Math.min(1, amount));
@@ -37,81 +37,102 @@ function revealPostcard() {
   postcard.classList.remove("is-loading");
 }
 
-function clipForViewport() {
-  return desktopQuery.matches ? HORIZONTAL_CLIP : VERTICAL_CLIP;
+function kindForViewport() {
+  return desktopQuery.matches ? "horizontal" : "vertical";
 }
 
-function ensureVideoLooping() {
-  video.muted = true;
-  video.defaultMuted = true;
-  video.loop = true;
-  video.playsInline = true;
-  video.autoplay = true;
-  const play = video.play();
-  if (play && typeof play.catch === "function") {
-    play.catch(() => {});
+function frameUrls(kind) {
+  const count = kind === "horizontal" ? HORIZONTAL_FRAMES : VERTICAL_FRAMES;
+  const urls = [];
+  for (let i = 1; i <= count; i += 1) {
+    const name = String(i).padStart(2, "0");
+    urls.push(`frames/${kind}/${name}.webp`);
   }
+  return urls;
 }
 
-function downloadClip(url, onProgress) {
-  if (downloaded[url]) return Promise.resolve(downloaded[url]);
-
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("GET", url);
-    xhr.responseType = "blob";
-    xhr.onprogress = (event) => {
-      if (event.lengthComputable && onProgress) {
-        onProgress(event.loaded / event.total);
-      }
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        const blob = new Blob([xhr.response], { type: "video/mp4" });
-        downloaded[url] = URL.createObjectURL(blob);
-        resolve(downloaded[url]);
-        return;
-      }
-      reject(new Error(String(xhr.status)));
-    };
-    xhr.onerror = () => reject(new Error("network"));
-    xhr.send();
-  });
+function loadImages(urls, onProgress) {
+  let done = 0;
+  return Promise.all(
+    urls.map(
+      (url) =>
+        new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => {
+            done += 1;
+            if (onProgress) onProgress(done / urls.length);
+            resolve(image);
+          };
+          image.onerror = () => reject(new Error(url));
+          image.src = url;
+        })
+    )
+  );
 }
 
-function playClip(url) {
-  const token = ++loadToken;
-  setProgress(downloaded[url] ? 1 : 0);
-  video.muted = true;
-  video.loop = true;
-  video.playsInline = true;
-  video.poster = url === HORIZONTAL_CLIP ? HORIZONTAL_POSTER : VERTICAL_POSTER;
-
-  downloadClip(url, (amount) => {
-    if (token === loadToken && !hasRevealed) setProgress(amount);
-  })
-    .then((blobUrl) => {
-      if (token !== loadToken) return;
-      video.src = blobUrl;
-      ensureVideoLooping();
-    })
-    .catch(() => {
-      if (token !== loadToken) return;
-      video.src = url.split("?")[0];
-      ensureVideoLooping();
-    });
+function fitCanvas() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(window.innerWidth * dpr);
+  canvas.height = Math.round(window.innerHeight * dpr);
 }
 
-function applyBackgroundClip() {
-  const next = clipForViewport();
-  if (activeClip === next) {
-    ensureVideoLooping();
+function drawCover(image) {
+  const cw = canvas.width;
+  const ch = canvas.height;
+  if (!cw || !ch || !image.width) return;
+  const imageRatio = image.width / image.height;
+  const canvasRatio = cw / ch;
+  let dw;
+  let dh;
+  if (imageRatio > canvasRatio) {
+    dh = ch;
+    dw = ch * imageRatio;
+  } else {
+    dw = cw;
+    dh = cw / imageRatio;
+  }
+  const dx = (cw - dw) / 2;
+  const dy = (ch - dh) / 2;
+  ctx.drawImage(image, dx, dy, dw, dh);
+}
+
+function tick(now) {
+  if (!playing || !playing.length) {
+    requestAnimationFrame(tick);
     return;
   }
-  activeClip = next;
-  playClip(next);
-  const other = next === HORIZONTAL_CLIP ? VERTICAL_CLIP : HORIZONTAL_CLIP;
-  downloadClip(other);
+  if (now - lastFrameAt >= FRAME_MS) {
+    lastFrameAt = now;
+    frameIndex = (frameIndex + 1) % playing.length;
+    drawCover(playing[frameIndex]);
+  }
+  requestAnimationFrame(tick);
+}
+
+async function applyBackground() {
+  const kind = kindForViewport();
+  if (kind === activeKind && playing) return;
+  activeKind = kind;
+  setProgress(cache[kind] ? 1 : 0);
+  try {
+    if (!cache[kind]) {
+      cache[kind] = await loadImages(frameUrls(kind), setProgress);
+    }
+    fitCanvas();
+    playing = cache[kind];
+    frameIndex = 0;
+    lastFrameAt = 0;
+    drawCover(playing[0]);
+    revealPostcard();
+  } catch (err) {
+    revealPostcard();
+  }
+  const other = kind === "horizontal" ? "vertical" : "horizontal";
+  if (!cache[other]) {
+    loadImages(frameUrls(other)).then((images) => {
+      cache[other] = images;
+    });
+  }
 }
 
 function startSoundtrack() {
@@ -126,7 +147,6 @@ function startSoundtrack() {
 function openCard() {
   if (postcard.classList.contains("is-open")) return;
   postcard.classList.add("is-open");
-  ensureVideoLooping();
   startSoundtrack();
   if (textOrigin === null) textOrigin = performance.now();
 }
@@ -148,26 +168,20 @@ function moveText(now) {
 }
 
 prepareTextLoop();
-applyBackgroundClip();
+fitCanvas();
+applyBackground();
+requestAnimationFrame(tick);
 requestAnimationFrame(moveText);
 
-window.setTimeout(revealPostcard, 90000);
-
-video.addEventListener("loadeddata", ensureVideoLooping);
-video.addEventListener("canplay", ensureVideoLooping);
-video.addEventListener("playing", () => {
-  video.removeAttribute("poster");
-  revealPostcard();
-});
-video.addEventListener("ended", () => {
-  video.currentTime = 0;
-  ensureVideoLooping();
+window.addEventListener("resize", () => {
+  fitCanvas();
+  if (playing && playing[frameIndex]) drawCover(playing[frameIndex]);
 });
 
 if (typeof desktopQuery.addEventListener === "function") {
-  desktopQuery.addEventListener("change", applyBackgroundClip);
+  desktopQuery.addEventListener("change", applyBackground);
 } else if (typeof desktopQuery.addListener === "function") {
-  desktopQuery.addListener(applyBackgroundClip);
+  desktopQuery.addListener(applyBackground);
 }
 
 openBtn.addEventListener("click", openCard);
